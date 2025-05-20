@@ -1,0 +1,6 @@
+.venv/
+*.wav
+*.mp3
+
+!dj.wav
+!ant.wav

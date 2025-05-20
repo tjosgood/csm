@@ -1,11 +1,9 @@
 from dataclasses import dataclass
-
 import torch
 import torch.nn as nn
 import torchtune
 from huggingface_hub import PyTorchModelHubMixin
 from torchtune.models import llama3_2
-
 
 def llama3_2_1B() -> torchtune.modules.transformer.TransformerDecoder:
     return llama3_2.llama3_2(
@@ -128,6 +126,7 @@ class Model(
 
         self.register_buffer("backbone_causal_mask", _create_causal_mask(self.backbone.max_seq_len, device))
         self.register_buffer("decoder_causal_mask", _create_causal_mask(self.config.audio_num_codebooks, device))
+
 
     def generate_frame(
         self,

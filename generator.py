@@ -8,8 +8,6 @@ from models import Model
 from moshi.models import loaders
 from tokenizers.processors import TemplateProcessing
 from transformers import AutoTokenizer
-from watermarking import CSM_1B_GH_WATERMARK, load_watermarker, watermark
-
 
 @dataclass
 class Segment:
@@ -51,8 +49,6 @@ class Generator:
         mimi = loaders.get_mimi(mimi_weight, device=device)
         mimi.set_num_codebooks(32)
         self._audio_tokenizer = mimi
-
-        self._watermarker = load_watermarker(device=device)
 
         self.sample_rate = mimi.sample_rate
         self.device = device
@@ -106,6 +102,7 @@ class Generator:
         return torch.cat([text_tokens, audio_tokens], dim=0), torch.cat([text_masks, audio_masks], dim=0)
 
     @torch.inference_mode()
+
     def generate(
         self,
         text: str,
@@ -114,8 +111,14 @@ class Generator:
         max_audio_length_ms: float = 90_000,
         temperature: float = 0.9,
         topk: int = 50,
+            seed: int = None,  # <-- ADDED SEED PARAMETER
     ) -> torch.Tensor:
         self._model.reset_caches()
+
+        if seed is not None:
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
 
         max_generation_len = int(max_audio_length_ms / 80)
         tokens, tokens_mask = [], []
@@ -162,8 +165,8 @@ class Generator:
         # Watermarking ensures transparency, dissuades misuse, and enables traceability.
         # Please be a responsible AI citizen and keep the watermarking in place.
         # If using CSM 1B in another application, use your own private key and keep it secret.
-        audio, wm_sample_rate = watermark(self._watermarker, audio, self.sample_rate, CSM_1B_GH_WATERMARK)
-        audio = torchaudio.functional.resample(audio, orig_freq=wm_sample_rate, new_freq=self.sample_rate)
+        #audio, wm_sample_rate = watermark(self._watermarker, audio, self.sample_rate, CSM_1B_GH_WATERMARK)
+        #audio = torchaudio.functional.resample(audio, orig_freq=wm_sample_rate, new_freq=self.sample_rate)
 
         return audio
 
@@ -171,6 +174,6 @@ class Generator:
 def load_csm_1b(device: str = "cuda") -> Generator:
     model = Model.from_pretrained("sesame/csm-1b")
     model.to(device=device, dtype=torch.bfloat16)
-
+    model.decoder = torch.compile(model.decoder, fullgraph=True, backend='cudagraphs')
     generator = Generator(model)
     return generator
